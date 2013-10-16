@@ -1,27 +1,27 @@
 require 'sinatra'
 require 'json'
 require 'mysql2'
-require 'rest_client'
 
 CONFIG_FILE='config/highrise.json'
+DOCS_URI='https://github.com/ghoneycutt/highrise/blob/master/README.md'
 
 fh_config = open(CONFIG_FILE)
 parsed_config = JSON.parse(fh_config.read)
-env_path = parsed_config['env_path']
+ENV_PATH = parsed_config['env_path']
 
-client = Mysql2::Client.new(:host     => "localhost",
-                            :username => "highrise",
-                            :password => "puppet",
+client = Mysql2::Client.new(:host     => 'localhost',
+                            :username => 'highrise',
+                            :password => 'puppet',
                             :database => 'highrise')
 
 before do
   content_type 'application/json'
 end
 
-env = ENV["RACK_ENV"]
+env = ENV['RACK_ENV']
 
-get "/" do
-  "Hello World!"
+get '/' do
+  redirect DOCS_URI, 301
 end
 
 get '/config' do
@@ -30,31 +30,17 @@ get '/config' do
 end
 
 get '/environments' do
-  results = Array.new
-  client.query("SELECT * FROM highrise").each(:symbolize_keys => true) do |row|
-    results << row[:name]
-  end
-
-  results.to_json
-end
-
-get "/environment/id/:id" do
-  results = Array.new
-  client.query("SELECT * FROM highrise where id='#{params[:id]}'").each(:symbolize_keys => true) do |row|
-    results << row[:name]
-  end
-
   h = {}
-  h['id'] = results[0]
-
-  if results.empty?
-    404
-  else
-    h.to_json
+  results = Array.new
+  client.query('SELECT * FROM highrise').each(:symbolize_keys => true) do |row|
+    results << row[:name]
   end
+
+  h['environments'] = results
+  h.to_json
 end
 
-get "/environment/:name" do
+get '/environment/:name' do
   results = Array.new
   name = params[:name]
   client.query("SELECT * FROM highrise where name='#{name}'").each do |row|
@@ -69,10 +55,10 @@ get "/environment/:name" do
   end
 end
 
-get "/environment/:env/key" do
-  env = params[:env]
+get '/environment/:name/key' do
+  name = params[:name]
+  fh = "#{ENV_PATH}/#{name}/.ssh/id_rsa.pub"
   h = {}
-  fh = "#{env_path}/#{env}/.ssh/id_rsa.pub"
 
   if File.readable?(fh)
     contents = File.open(fh,'r').read.chomp
@@ -84,18 +70,52 @@ get "/environment/:env/key" do
   end
 end
 
-
-post "/environment/:env/create" do
-  env = params[:env]
+# This should
+#   * create entry in database
+#   * read yaml file for environments file and add :name to array of environments on disk
+#   * trigger puppet run with mcollective
+post '/environment/:name/create' do
+  name = params[:name]
+  # copy and paste from route
+  #get '/environment/:name'
+  # duplicating code means i'm doing this wrong :(
   results = Array.new
-  client.query("SELECT * FROM highrise where name='gh'").each(:symbolize_keys => true) do |row|
-#    if row[:name] == env
-#      #results << row[:name]
-#    end
-#    if results.empty?
-#      print "free"
-#    else
-#      403
-#    end
+  client.query("SELECT * FROM highrise where name='#{name}'").each do |row|
+    results << row
+  end
+
+  result = results[0].to_json
+  if result == 'null'
+
+    data = JSON.parse request.body.read
+    insert_results = client.query(
+      "INSERT into highrise
+      ( name,
+        puppetfile_repo,
+        puppetfile_ref,
+        hiera_repo,
+        hiera_ref,
+        manifests_repo,
+        manifests_ref,
+        primary_name,
+        primary_email,
+        secondary_name,
+        secondary_email)
+      VALUES
+      ( '#{name}',
+        '#{data['puppetfile_repo']}',
+        '#{data['puppetfile_ref']}',
+        '#{data['hiera_repo']}',
+        '#{data['hiera_ref']}',
+        '#{data['manifests_repo']}',
+        '#{data['manifests_ref']}',
+        '#{data['primary_name']}',
+        '#{data['primary_email']}',
+        '#{data['secondary_name']}',
+        '#{data['secondary_email']}');
+    "
+    )
+  else
+    403
   end
 end
