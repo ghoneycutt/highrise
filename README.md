@@ -78,3 +78,12 @@ Security Model
 * SSL Support
 * Rate limiting
 
+___
+
+Local Setup
+===========
+    git clone git@github.com:ghoneycutt/highrise.git
+    cd highrise
+    mysql -u root -p < ext/create_db.sql
+    mysql -u root -p highrise < ext/populate_test_data.sql # optional
+    shotgun
