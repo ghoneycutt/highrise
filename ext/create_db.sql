@@ -1,3 +1,10 @@
+USE `mysql`;
+
+CREATE DATABASE IF NOT EXISTS `highrise`
+DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;
+
+USE `highrise`;
+
 CREATE TABLE `highrise` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR( 255 ) NOT NULL,

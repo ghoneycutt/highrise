@@ -2,17 +2,12 @@ require 'sinatra'
 require 'json'
 require 'mysql2'
 
-CONFIG_FILE='config/highrise.json'
-DOCS_URI='https://github.com/ghoneycutt/highrise/blob/master/README.md'
+CONFIG    = JSON.parse(File.read('config/highrise.json'))
+DB_CONFIG = JSON.parse(File.read('config/database.json'))
+DOCS_URI  ='https://github.com/ghoneycutt/highrise/blob/master/README.md'
+ENV_PATH  = CONFIG['env_path']
 
-fh_config = open(CONFIG_FILE)
-parsed_config = JSON.parse(fh_config.read)
-ENV_PATH = parsed_config['env_path']
-
-client = Mysql2::Client.new(:host     => 'localhost',
-                            :username => 'highrise',
-                            :password => 'puppet',
-                            :database => 'highrise')
+client = Mysql2::Client.new(DB_CONFIG)
 
 before do
   content_type 'application/json'
@@ -25,8 +20,7 @@ get '/' do
 end
 
 get '/config' do
-  fh_config = open(CONFIG_FILE)
-  json_config = fh_config.read
+  CONFIG.to_json
 end
 
 get '/environments' do
