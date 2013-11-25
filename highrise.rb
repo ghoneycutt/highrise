@@ -16,6 +16,10 @@ end
 env = ENV['RACK_ENV']
 
 get '/' do
+  erb :index
+end
+
+get '/doc' do
   redirect DOCS_URI, 301
 end
 
@@ -25,23 +29,37 @@ end
 
 get '/environments' do
   h = {}
-  results = Array.new
-  client.query('SELECT * FROM highrise').each(:symbolize_keys => true) do |row|
-    results << row[:name]
+  results = []
+  client.query('SELECT * FROM highrise').each do |row|
+    results << row.merge(:href => "/environment/#{row['id']}",
+      :meta => {
+        :sub_resources => [
+          :create => { :href => '/environments/create', :description => 'Create an environment' }
+        ]
+      }
+    )
   end
 
   h['environments'] = results
   h.to_json
 end
 
-get '/environment/:name' do
-  results = Array.new
-  name = params[:name]
-  client.query("SELECT * FROM highrise where name='#{name}'").each do |row|
-    results << row
+get '/environment/:id' do
+  results = []
+  id = client.escape(params[:id])
+  client.query("SELECT * FROM highrise where id = #{id}").each do |row|
+    results << row.merge(:href => "/environments/#{row['id']}",
+      :meta => {
+        :sub_resources => [
+          :update => { :href => "/environment/#{row['id']}/update", :description => 'Update environment data' },
+          :delete => { :href => "/environment/#{row['id']}/delete", :description => 'Delete environment' },
+          :keys   => { :href => "/environment/#{row['id']}/keys",   :description => 'Show environment public SSH key'}
+        ]
+      }
+    )
   end
 
-  result = results[0].to_json
+  result = results.first.to_json
   if result == 'null'
     404
   else
@@ -49,13 +67,13 @@ get '/environment/:name' do
   end
 end
 
-get '/environment/:name/key' do
-  name = params[:name]
-  fh = "#{ENV_PATH}/#{name}/.ssh/id_rsa.pub"
+get '/environment/:id/keys' do
+  id = params[:id]
+  fh = "#{ENV_PATH}/#{id}/.ssh/id_rsa.pub"
   h = {}
 
   if File.readable?(fh)
-    contents = File.open(fh,'r').read.chomp
+    contents = File.read(fh).chomp
     key = contents.split[1]
     h['key'] = key
     h.to_json
@@ -68,8 +86,8 @@ end
 #   * create entry in database
 #   * read yaml file for environments file and add :name to array of environments on disk
 #   * trigger puppet run with mcollective
-post '/environment/:name/create' do
-  name = params[:name]
+post '/environments/create' do
+  name = client.escape(params[:name])
   # copy and paste from route
   #get '/environment/:name'
   # duplicating code means i'm doing this wrong :(
@@ -97,16 +115,16 @@ post '/environment/:name/create' do
         secondary_email)
       VALUES
       ( '#{name}',
-        '#{data['puppetfile_repo']}',
-        '#{data['puppetfile_ref']}',
-        '#{data['hiera_repo']}',
-        '#{data['hiera_ref']}',
-        '#{data['manifests_repo']}',
-        '#{data['manifests_ref']}',
-        '#{data['primary_name']}',
-        '#{data['primary_email']}',
-        '#{data['secondary_name']}',
-        '#{data['secondary_email']}');
+        '#{client.escape(data['puppetfile_repo'])}',
+        '#{client.escape(data['puppetfile_ref'])}',
+        '#{client.escape(data['hiera_repo'])}',
+        '#{client.escape(data['hiera_ref'])}',
+        '#{client.escape(data['manifests_repo'])}',
+        '#{client.escape(data['manifests_ref'])}',
+        '#{client.escape(data['primary_name'])}',
+        '#{client.escape(data['primary_email'])}',
+        '#{client.escape(data['secondary_name'])}',
+        '#{client.escape(data['secondary_email'])}');
     "
     )
   else
